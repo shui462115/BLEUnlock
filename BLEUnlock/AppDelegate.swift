@@ -80,9 +80,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.menu == lockRSSIMenu {
-            return menuItem.tag <= ble.unlockRSSI
+            return menuItem.tag < ble.unlockRSSI
         } else if menuItem.menu == unlockRSSIMenu {
-            return menuItem.tag >= ble.lockRSSI
+            return menuItem.tag > ble.lockRSSI
         } else if menuItem.menu == sleepRSSIMenu {
             return menuItem.tag < ble.lockRSSI || menuItem.tag == ble.LOCK_DISABLED
         }
