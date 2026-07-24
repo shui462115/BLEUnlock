@@ -146,6 +146,20 @@ class BLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         //print("Start scanning")
     }
 
+    func recoverMonitoredPeripheral(_ reason: String) {
+        guard monitoredPeripheral != nil else { return }
+
+        print("Recovering monitored device (\(reason))")
+        connectionTimer?.invalidate()
+        connectionTimer = nil
+        activeModeTimer?.invalidate()
+        activeModeTimer = nil
+
+        if centralMgr.state == .poweredOn {
+            scanForPeripherals()
+        }
+    }
+
     func startScanning() {
         scanMode = true
         scanForPeripherals()
@@ -203,15 +217,22 @@ class BLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         switch central.state {
         case .poweredOn:
             print("Bluetooth powered on")
-            if activeModeTimer == nil {
-                scanForPeripherals()
-            }
+            connectionTimer?.invalidate()
+            connectionTimer = nil
+            activeModeTimer?.invalidate()
+            activeModeTimer = nil
+            scanForPeripherals()
             powerWarn = false
         case .poweredOff:
             print("Bluetooth powered off")
             presence = false
             signalTimer?.invalidate()
             signalTimer = nil
+            connectionTimer?.invalidate()
+            connectionTimer = nil
+            activeModeTimer?.invalidate()
+            activeModeTimer = nil
+            central.stopScan()
             if powerWarn {
                 powerWarn = false
                 delegate?.bluetoothPowerWarn()
@@ -363,6 +384,28 @@ class BLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
             connectionTimer = nil
             peripheral.readRSSI()
         }
+    }
+
+    func centralManager(_ central: CBCentralManager,
+                        didDisconnectPeripheral peripheral: CBPeripheral,
+                        error: Error?)
+    {
+        guard peripheral == monitoredPeripheral else { return }
+
+        let detail = error?.localizedDescription ?? "no error reported"
+        print("Monitored device disconnected: \(detail)")
+        recoverMonitoredPeripheral("disconnected")
+    }
+
+    func centralManager(_ central: CBCentralManager,
+                        didFailToConnect peripheral: CBPeripheral,
+                        error: Error?)
+    {
+        guard peripheral == monitoredPeripheral else { return }
+
+        let detail = error?.localizedDescription ?? "no error reported"
+        print("Failed to connect to monitored device: \(detail)")
+        recoverMonitoredPeripheral("connection failed")
     }
 
     //MARK:CBCentralManagerDelegate end -
