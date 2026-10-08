@@ -507,16 +507,74 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
                 "accessibility": String(AXIsProcessTrusted()),
             ])
             guard self.isScreenLocked() else { return }
-            guard let password = self.fetchPassword(warn: true) else {
-                DiagnosticsLogger.shared.log("unlock_skipped", fields: ["reason": "no_password"])
-                return
-            }
-            
-            print("Entering password")
+            // macOS 26 and later keep the password field hidden and consume the first key
+            // event to reveal it. fakeKeyStrokes sends up to 20 characters in a single
+            // event, so that first event takes the whole password with it and the screen
+            // stays locked. Wake the field up first with keys that insert no text.
+            self.nudgeLockScreen()
+            Timer.scheduledTimer(withTimeInterval: 0.8, repeats: false, block: { _ in
+                self.enterPassword(attempt: 1)
+            })
+        })
+    }
+
+    /// Presses keys that reveal the lock screen's password field without typing a character.
+    func nudgeLockScreen() {
+        let src = CGEventSource(stateID: .hidSystemState)
+        // Left and up arrow: real key presses, but they add nothing to a password field.
+        for key in [CGKeyCode(0x7B), CGKeyCode(0x7E)] {
+            CGEvent(keyboardEventSource: src, virtualKey: key, keyDown: true)?.post(tap: .cghidEventTap)
+            CGEvent(keyboardEventSource: src, virtualKey: key, keyDown: false)?.post(tap: .cghidEventTap)
+        }
+        DiagnosticsLogger.shared.log("lock_screen_nudged")
+    }
+
+    /// Selects everything in the password field and deletes it, so a retry can never type
+    /// the password twice into the same field.
+    func clearPasswordField() {
+        let src = CGEventSource(stateID: .hidSystemState)
+        let cmdDown = CGEvent(keyboardEventSource: src, virtualKey: 0x37, keyDown: true)
+        let aDown = CGEvent(keyboardEventSource: src, virtualKey: 0x00, keyDown: true)
+        let aUp = CGEvent(keyboardEventSource: src, virtualKey: 0x00, keyDown: false)
+        let cmdUp = CGEvent(keyboardEventSource: src, virtualKey: 0x37, keyDown: false)
+        for event in [cmdDown, aDown, aUp, cmdUp] {
+            event?.flags = .maskCommand
+            event?.post(tap: .cghidEventTap)
+        }
+        CGEvent(keyboardEventSource: src, virtualKey: 0x33, keyDown: true)?.post(tap: .cghidEventTap)
+        CGEvent(keyboardEventSource: src, virtualKey: 0x33, keyDown: false)?.post(tap: .cghidEventTap)
+    }
+
+    func enterPassword(attempt: Int) {
+        guard isScreenLocked() else {
+            DiagnosticsLogger.shared.log("unlock_ok", fields: ["attempt": String(attempt)])
+            return
+        }
+        guard let password = self.fetchPassword(warn: attempt == 1) else {
+            DiagnosticsLogger.shared.log("unlock_skipped", fields: ["reason": "no_password"])
+            return
+        }
+
+        print("Entering password")
+        DiagnosticsLogger.shared.log("password_typed", fields: ["attempt": String(attempt)])
+        if attempt == 1 {
             self.unlockedAt = Date().timeIntervalSince1970
-            self.fakeKeyStrokes(password)
+        }
+        self.fakeKeyStrokes(password)
+        if attempt == 1 {
             self.playNowPlaying()
             self.runScript("unlocked")
+        }
+
+        // Verify: if the screen is still locked the keystrokes did not get through, so clear
+        // the field and try once more.
+        Timer.scheduledTimer(withTimeInterval: 2.5, repeats: false, block: { _ in
+            let locked = self.isScreenLocked()
+            DiagnosticsLogger.shared.log(locked ? "unlock_still_locked" : "unlock_ok",
+                                         fields: ["attempt": String(attempt)])
+            guard locked, attempt < 2 else { return }
+            self.clearPasswordField()
+            self.enterPassword(attempt: attempt + 1)
         })
     }
 

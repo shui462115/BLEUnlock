@@ -70,3 +70,38 @@ ditto build/BLEUnlock.app /Applications/BLEUnlock.app
 # 3. 首次运行请重新授予蓝牙权限；若要自动输入密码解锁，还需在
 #    系统设置 → 隐私与安全性 → 辅助功能 中勾选 BLEUnlock
 ```
+
+## macOS 26/27 修复：锁屏密码框未唤出导致「只亮屏不进桌面」
+
+### 症状
+离开后回来，屏幕被唤醒但停在锁屏界面，不自动进入桌面；先用键盘碰一下再等，反而能解锁。
+
+### 根因（用 ~/Library/Logs/BLEUnlock.log 与 log show 实测确认）
+macOS 26/27 的锁屏界面初始隐藏密码输入框，第一个按键事件会被消耗用于唤出该框：
+
+    loginwindow: keyPressed: | Password view hidden and ! ignore when hidden
+    loginwindow: showPasswordFieldMakingFirstResponder: shouldMakeFirstResponder: 0
+    loginwindow: setPasswordFieldString: setting secure text field string to:   <- 空
+
+而 fakeKeyStrokes 每个事件携带最多 20 个字符（virtualKey 49 + Unicode 字符串），
+所以这第一个被吃掉的事件正好带走了整个密码，随后的回车对着空密码框按下，
+系统根本没有发起认证（该时间点没有任何 opendirectoryd 认证记录）。
+
+用户自己先按键时，密码框已经被唤出，app 再输入就能成功：
+
+    13:44:05.309 BLEUnlock: SecItemCopyMatching
+    13:44:05.805 opendirectoryd: Authentication succeeded
+    13:44:05.841 loginwindow: Screen unlock succeeded using password
+
+### 修复（AppDelegate.swift）
+1. 输入密码前先发送不产生字符的方向键（左/上）唤出密码框，等待 0.8 秒；
+2. 输入后 2.5 秒检查 isScreenLocked()；若仍锁定，用 Cmd+A / Delete 清空密码框
+   （避免密码被输入两次）后重试一次，最多两次；
+3. 新增诊断事件：lock_screen_nudged、password_typed、unlock_ok、
+   unlock_still_locked、unlock_skipped reason=no_password，便于日后定位。
+
+### 重新编译后的必做步骤
+ad-hoc 签名每次重新编译都会变化，macOS 会把「辅助功能」授权作废
+（日志：Failed to match existing code requirement for subject jp.sone.BLEUnlock
+and service kTCCServiceAccessibility）。安装新构建后需要到
+系统设置 - 隐私与安全性 - 辅助功能 里把 BLEUnlock 关掉再打开。
