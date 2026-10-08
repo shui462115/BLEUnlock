@@ -179,16 +179,43 @@ assemble() {
     printf 'APPL????' > "$APP/Contents/PkgInfo"
 }
 
+# A local, self-signed certificate gives the app a designated requirement that is tied to
+# the certificate instead of the binary's cdhash. macOS keeps the Accessibility grant and the
+# keychain ACL across rebuilds only with a stable identity like this one; with an ad-hoc
+# signature (--sign -) every rebuild invalidates both. Create it once with:
+#   security import cert.p12 -k ~/Library/Keychains/login.keychain-db -P <pass> \
+#       -T /usr/bin/codesign -T /usr/bin/security
+# Override the name with SIGN_IDENTITY, or set SIGN_IDENTITY=- to force ad-hoc.
+signing_identity() {
+    local wanted="${SIGN_IDENTITY:-BLEUnlock Local Signing}"
+    if [ "$wanted" = "-" ]; then
+        printf '%s' "-"
+        return
+    fi
+    if security find-identity -p codesigning 2>/dev/null | grep -qF "$wanted"; then
+        printf '%s' "$wanted"
+    else
+        warn "signing identity '$wanted' not found; falling back to ad-hoc"
+        printf '%s' "-"
+    fi
+}
+
 sign() {
-    blue "signing (ad-hoc)"
+    local identity
+    identity=$(signing_identity)
+    if [ "$identity" = "-" ]; then
+        blue "signing (ad-hoc)"
+    else
+        blue "signing (identity: $identity)"
+    fi
     local launcher="$APP/Contents/Library/LoginItems/Launcher.app"
-    codesign --force --sign - --timestamp=none \
+    codesign --force --sign "$identity" --timestamp=none \
         --entitlements "$ROOT/Launcher/Launcher.entitlements" \
         "$launcher/Contents/MacOS/Launcher" >/dev/null 2>&1 || warn "launcher binary signing failed"
-    codesign --force --sign - --timestamp=none \
+    codesign --force --sign "$identity" --timestamp=none \
         --entitlements "$ROOT/Launcher/Launcher.entitlements" "$launcher" >/dev/null 2>&1 \
         || warn "launcher bundle signing failed"
-    codesign --force --sign - --timestamp=none --options runtime \
+    codesign --force --sign "$identity" --timestamp=none --options runtime \
         --entitlements "$ROOT/BLEUnlock/BLEUnlock.entitlements" "$APP" >/dev/null 2>&1 \
         || warn "app signing failed (the app may still run)"
     if codesign --verify --strict "$APP" >/dev/null 2>&1; then
