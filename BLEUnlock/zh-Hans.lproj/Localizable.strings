@@ -26,6 +26,7 @@
 "password_not_set" = "未设置密码";
 "pause_now_playing" = "锁屏时暂停音频";
 "quit" = "退出 BLEUnlock";
+"run_event_script_while_locked" = "锁定时也运行 \"event\" 脚本";
 "scanning" = "扫描中…";
 "seconds" = "秒";
 "set_password" = "设置解锁密码…";
