@@ -177,6 +177,11 @@ assemble() {
     cp "$launcher_nib" "$launcher/Contents/Resources/MainMenu.nib"
 
     printf 'APPL????' > "$APP/Contents/PkgInfo"
+
+    # Drop metadata inherited from the vendored release: left in place it turns into
+    # AppleDouble (._*) entries inside the zip, and those land in the bundle root when a
+    # user unzips the app, which makes the code signature look unsealed.
+    xattr -cr "$APP"
 }
 
 # A local, self-signed certificate gives the app a designated requirement that is tied to
@@ -238,7 +243,9 @@ main() {
     if [ "$MADE_ZIP" = yes ]; then
         local zip="$BUILD/$APP_NAME-$version-build$build.zip"
         rm -f "$zip"
-        ditto -c -k --keepParent "$APP" "$zip"
+        # --norsrc keeps resource forks out of the archive instead of storing them as
+        # AppleDouble entries that reappear as files inside the app after unzipping.
+        ditto -c -k --norsrc --keepParent "$APP" "$zip"
         blue "packaged $zip"
     fi
 }
