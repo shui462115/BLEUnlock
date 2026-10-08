@@ -105,3 +105,24 @@ ad-hoc 签名每次重新编译都会变化，macOS 会把「辅助功能」授�
 （日志：Failed to match existing code requirement for subject jp.sone.BLEUnlock
 and service kTCCServiceAccessibility）。安装新构建后需要到
 系统设置 - 隐私与安全性 - 辅助功能 里把 BLEUnlock 关掉再打开。
+
+## 1.12.4 验证记录（2026-10-08）
+
+用与真实场景完全相同的路径实测（锁屏 → 屏幕休眠 → 用 user-activity 断言唤醒屏幕）：
+
+    05:55:01 display_wake
+    05:55:01 unlock_attempt accessibility=true presence=true screenLocked=true
+    05:55:01 lock_screen_nudged
+    05:55:03 password_typed attempt=1
+    05:55:05 unlock_still_locked attempt=1      <- 第一次输入仍被锁屏吞掉
+    05:55:05 password_typed attempt=2           <- 清空后自动重试
+    05:55:08 unlock_ok attempt=2
+
+系统侧确认：
+
+    13:55:05.984 opendirectoryd: Authentication succeeded
+    13:55:06.045 loginwindow: authSuccess | password is CORRECT
+    13:55:06.124 loginwindow: sendNotificationOf kScreenIsUnlocked
+
+结论：方向键唤出密码框 + 校验重试的组合可以在 macOS 27 上可靠解锁；
+第一次输入仍可能被吞，因此 2.5 秒后的重试是必需的，不能去掉。
