@@ -19,6 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
     let timeoutMenu = NSMenu()
     let lockDelayMenu = NSMenu()
     let externalDisplayMenu = NSMenu()
+    let sleepRSSIMenu = NSMenu()
     var deviceDict: [UUID: NSMenuItem] = [:]
     var monitorMenuItem : NSMenuItem?
     let prefs = UserDefaults.standard
@@ -74,6 +75,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
                     item.state = .off
                 }
             }
+        } else if menu == sleepRSSIMenu {
+            for item in menu.items {
+                if item.tag == ble.sleepRSSI {
+                    item.state = .on
+                } else {
+                    item.state = .off
+                }
+            }
         } else if menu == timeoutMenu {
             for item in menu.items {
                 if item.tag == Int(ble.signalTimeout) {
@@ -97,9 +106,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
         if menuItem.menu == lockRSSIMenu {
-            return menuItem.tag <= ble.unlockRSSI
+            return menuItem.tag < ble.unlockRSSI
         } else if menuItem.menu == unlockRSSIMenu {
             return menuItem.tag >= ble.lockRSSI
+        } else if menuItem.menu == sleepRSSIMenu {
+            return menuItem.tag < ble.lockRSSI || menuItem.tag == ble.LOCK_DISABLED
         } else if menuItem.action == #selector(renameDevice) {
             return ble.monitoredUUID != nil
         }
@@ -329,6 +340,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
                 tryUnlockScreen()
             }
         } else {
+            // Turn off the screen (without locking) when the device is far away.
+            if (!displaySleep && ble.sleepRSSI != ble.LOCK_DISABLED &&
+                (lastRSSI == nil || lastRSSI! <= ble.sleepRSSI)) {
+                print("sleep display due to RSSI threshold")
+                sleepDisplay()
+                displaySleep = true // Mark as sleeping to prevent lock
+                return // Skip lock logic
+            }
             if ble.lockRSSI != ble.LOCK_DISABLED {
                 let locked = isScreenLocked()
                 if !locked {
@@ -669,6 +688,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
         prefs.set(value, forKey: "unlockRSSI")
         ble.unlockRSSI = value
     }
+    
+    @objc func setSleepRSSI(_ menuItem: NSMenuItem) {
+        let value = menuItem.tag
+        prefs.set(value, forKey: "sleepRSSI")
+        ble.sleepRSSI = value
+    }
 
     @objc func setTimeout(_ menuItem: NSMenuItem) {
         let value = menuItem.tag
@@ -796,6 +821,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
         constructRSSIMenu(lockRSSIMenu, #selector(setLockRSSI))
         item = lockRSSIMenu.addItem(withTitle: t("disabled"), action: #selector(setLockRSSI), keyEquivalent: "")
         item.tag = ble.LOCK_DISABLED
+        
+        let sleepRSSIItem = mainMenu.addItem(withTitle: t("sleep_rssi"), action: nil, keyEquivalent: "")
+            sleepRSSIItem.submenu = sleepRSSIMenu
+            constructRSSIMenu(sleepRSSIMenu, #selector(setSleepRSSI))
+            item = sleepRSSIMenu.addItem(withTitle: t("disabled"), action: #selector(setSleepRSSI), keyEquivalent: "")
+            item.tag = ble.LOCK_DISABLED
 
         let lockDelayItem = mainMenu.addItem(withTitle: t("lock_delay"), action: nil, keyEquivalent: "")
         lockDelayItem.submenu = lockDelayMenu
@@ -928,6 +959,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
         let unlockRSSI = prefs.integer(forKey: "unlockRSSI")
         if unlockRSSI != 0 {
             ble.unlockRSSI = unlockRSSI
+        }
+        let sleepRSSI = prefs.integer(forKey: "sleepRSSI")
+            if sleepRSSI != 0 {
+                ble.sleepRSSI = sleepRSSI
         }
         let timeout = prefs.integer(forKey: "timeout")
         if timeout != 0 {

@@ -32,6 +32,7 @@
 "seconds" = "秒";
 "set_password" = "设置解锁密码…";
 "set_rssi_threshold" = "设置最小 RSSI…";
+"sleep_rssi" = "休眠信号强度";
 "sleep_display" = "锁屏时关闭显示器";
 "timeout" = "无信号超时";
 "unlock_rssi" = "解锁触发距离";

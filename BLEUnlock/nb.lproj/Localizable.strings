@@ -31,6 +31,7 @@
 "seconds" = "sekunder";
 "set_password" = "Angi passord…";
 "set_rssi_threshold" = "Angi minimum RSSI…";
+"sleep_rssi" = "Sove RSSI";
 "sleep_display" = "Slå av skjerm ved låsing";
 "timeout" = "Tidsavbrudd uten signal";
 "unlock_rssi" = "Låse opp RSSI";
