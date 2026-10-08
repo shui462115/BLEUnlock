@@ -27,6 +27,9 @@
 "password_not_set" = "未设置密码";
 "pause_now_playing" = "锁屏时暂停音频";
 "quit" = "退出 BLEUnlock";
+"rename_device" = "重命名设备…";
+"rename_device_info" = "为该设备输入自定义名称，留空则移除自定义名称。";
+"rename_device_placeholder" = "例如：我的 iPhone";
 "run_event_script_while_locked" = "锁定时也运行 \"event\" 脚本";
 "scanning" = "扫描中…";
 "seconds" = "秒";
@@ -39,3 +42,5 @@
 "use_screensaver_to_lock" = "锁屏时启用屏保";
 "wake_on_proximity" = "靠近唤醒";
 "wake_without_unlocking" = "唤醒后不自动解锁";
+"external_display_mode_only" = "仅连接外接显示器时解锁";
+"external_displays" = "外接显示器";
