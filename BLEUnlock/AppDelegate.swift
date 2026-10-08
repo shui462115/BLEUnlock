@@ -466,11 +466,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
     }
     
     func tryUnlockScreen() {
-        guard !manualLock else { return }
-        guard ble.presence else { return }
-        guard ble.unlockRSSI != ble.UNLOCK_DISABLED else { return }
-        guard !systemSleep else { return }
-        guard !displaySleep else { return }
+        // Diagnostics: state of every gate on each unlock attempt.
+        DiagnosticsLogger.shared.log("unlock_attempt", fields: [
+            "manualLock": String(manualLock),
+            "presence": String(ble.presence),
+            "systemSleep": String(systemSleep),
+            "displaySleep": String(displaySleep),
+            "screenLocked": String(isScreenLocked()),
+            "accessibility": String(AXIsProcessTrusted()),
+        ])
+        func skip(_ reason: String) {
+            DiagnosticsLogger.shared.log("unlock_skipped", fields: ["reason": reason])
+        }
+        guard !manualLock else { skip("manual_lock"); return }
+        guard ble.presence else { skip("no_presence"); return }
+        guard ble.unlockRSSI != ble.UNLOCK_DISABLED else { skip("unlock_disabled"); return }
+        guard !systemSleep else { skip("system_sleep"); return }
+        guard !displaySleep else { skip("display_sleep"); return }
 
         if inScreensaver {
             // In screensaver, make sure Login panel is displayed
@@ -482,14 +494,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
         
         if self.prefs.bool(forKey: "externalDisplayModelOnly") && !isExternalDisplayConnected() {
             print("External Display is not connected")
+            skip("external_display_missing")
             return
         }
 
-        guard !self.prefs.bool(forKey: "wakeWithoutUnlocking") else { return }
+        guard !self.prefs.bool(forKey: "wakeWithoutUnlocking") else { skip("wake_without_unlocking"); return }
 
         Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false, block: { _ in
+            // Diagnostics: the two conditions that decide whether the password is typed.
+            DiagnosticsLogger.shared.log("unlock_check", fields: [
+                "screenLocked": String(self.isScreenLocked()),
+                "accessibility": String(AXIsProcessTrusted()),
+            ])
             guard self.isScreenLocked() else { return }
-            guard let password = self.fetchPassword(warn: true) else { return }
+            guard let password = self.fetchPassword(warn: true) else {
+                DiagnosticsLogger.shared.log("unlock_skipped", fields: ["reason": "no_password"])
+                return
+            }
             
             print("Entering password")
             self.unlockedAt = Date().timeIntervalSince1970
@@ -501,6 +522,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
 
     @objc func onDisplayWake() {
         print("display wake")
+        DiagnosticsLogger.shared.log("display_wake")
         //unlockedAt = Date().timeIntervalSince1970
         displaySleep = false
         wakeTimer?.invalidate()
@@ -510,11 +532,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
 
     @objc func onDisplaySleep() {
         print("display sleep")
+        DiagnosticsLogger.shared.log("display_sleep")
         displaySleep = true
     }
 
     @objc func onSystemWake() {
         print("system wake")
+        DiagnosticsLogger.shared.log("system_wake")
         Timer.scheduledTimer(withTimeInterval: 1, repeats: false, block: { _ in
             print("delayed system wake job")
             NSApp.setActivationPolicy(.accessory) // Hide Dock icon again
@@ -525,6 +549,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
     
     @objc func onSystemSleep() {
         print("system sleep")
+        DiagnosticsLogger.shared.log("system_sleep")
         systemSleep = true
         // Set activation policy to regular, so the CBCentralManager can scan for peripherals
         // when the Bluetooth will become on again.

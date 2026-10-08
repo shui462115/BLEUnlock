@@ -152,6 +152,8 @@ class BLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
     var lastReadAt = 0.0
     var powerWarn = true
     var passiveMode = false
+    // Diagnostics only: last signal bucket that was written to the log.
+    var lastLoggedRSSIBucket: Int?
     var thresholdRSSI = -70
     var latestRSSIs: [Double] = []
     var latestN: Int = 5
@@ -337,6 +339,21 @@ class BLE: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate {
         delegate?.updateRSSI(rssi: estimatedRSSI, active: activeModeTimer != nil)
 
         let unlockThreshold = (unlockRSSI == UNLOCK_DISABLED ? lockRSSI : unlockRSSI)
+
+        // Diagnostics: log the signal only when it moves into another 5 dBm bucket, so the
+        // log shows whether the device ever comes close to the unlock threshold.
+        let bucket = Int(floor(Double(estimatedRSSI) / 5.0)) * 5
+        if bucket != lastLoggedRSSIBucket {
+            lastLoggedRSSIBucket = bucket
+            DiagnosticsLogger.shared.log("rssi", fields: [
+                "smoothed": String(estimatedRSSI),
+                "raw": String(rssi),
+                "unlockThreshold": String(unlockThreshold),
+                "lockThreshold": String(lockRSSI),
+                "samples": String(latestRSSIs.count),
+                "presence": String(presence),
+            ])
+        }
 
         // Multi-sample confirmation (PR #189): requests a few extra readings and only
         // reports "close" once two of them clear the unlock threshold.
