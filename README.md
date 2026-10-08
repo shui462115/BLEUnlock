@@ -1,5 +1,18 @@
 # BLEUnlock
 
+> **本仓库是社区 PR 合并版（fork）**
+>
+> 官方上游 [ts1/BLEUnlock](https://github.com/ts1/BLEUnlock) 有 15 个一直没被合并的社区 PR，本仓库把它们合并后直接构建发布，可直接下载安装：
+>
+> **[⬇︎ 下载最新版（Releases）](https://github.com/shui462115/BLEUnlock/releases/latest)**
+>
+> 当前版本 **1.12.3 (build 849)**：蓝牙断线自动重连、接近检测防误判（#186 / #189）、外接显示器检测（#128）、睡眠 RSSI（#154）、隐藏菜单栏图标（#178）、重命名设备（#181）等，详见 [MERGE-NOTES.md](MERGE-NOTES.md)。
+>
+> 本版为本地 ad-hoc 签名（未做苹果公证），首次打开前请执行：
+> ```bash
+> xattr -dr com.apple.quarantine /Applications/BLEUnlock.app
+> ```
+
 ## Please note that I don't distribute this app on the Mac App Store. You can find it here for free! 
 
 ![CI](https://github.com/ts1/BLEUnlock/workflows/CI/badge.svg)
