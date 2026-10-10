@@ -126,3 +126,19 @@ and service kTCCServiceAccessibility）。安装新构建后需要到
 
 结论：方向键唤出密码框 + 校验重试的组合可以在 macOS 27 上可靠解锁；
 第一次输入仍可能被吞，因此 2.5 秒后的重试是必需的，不能去掉。
+
+## 「发现新版本！」误报修复
+
+症状：每次（间隔 24 小时后）重新启动 app 都弹出「发现新版本！」。
+
+根因：checkUpdate.swift 查询的是上游仓库
+（https://api.github.com/repos/ts1/BLEUnlock/releases/latest，停在 1.12.2），
+而本地版本是 1.12.4+，比较逻辑是 version != latestVersion —— 只要版本"不同"就提示，
+于是本地版本高于上游时必然误报。
+
+修复：
+1. 改查本仓库 release（shui462115/BLEUnlock）；
+2. 比较逻辑改为数值化版本比较，只有远端确实更新才提示；
+3. 通知点击后打开本仓库 releases（原来指向上游）；
+4. 新增开关：defaults write jp.sone.BLEUnlock checkForUpdates -bool false 可完全关闭，
+   关闭时日志记录 update_check_skipped reason=disabled 便于确认。
