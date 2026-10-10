@@ -265,7 +265,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate, NSMenuItemVa
     func userNotificationCenter(_ center: NSUserNotificationCenter,
                                 didActivate notification: NSUserNotification) {
         if notification != userNotification {
-            NSWorkspace.shared.open(URL(string: "https://github.com/ts1/BLEUnlock/releases")!)
+            NSWorkspace.shared.open(URL(string: "https://github.com/shui462115/BLEUnlock/releases")!)
             NSUserNotificationCenter.default.removeDeliveredNotification(notification)
         }
     }
